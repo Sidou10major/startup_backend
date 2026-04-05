@@ -4,14 +4,19 @@ from passlib.context import CryptContext
 
 from app.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256"],
+    deprecated="auto"
+)
 
 
 def hash_password(password: str) -> str:
+    password = password.strip()
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    plain_password = plain_password.strip()
     return pwd_context.verify(plain_password, hashed_password)
 
 
