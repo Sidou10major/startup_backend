@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
-from app.schemas.startup import RuleBasedResponse, AIResponse
+from typing import List, Optional
+from app.schemas.startup import RuleBasedResponse, AIResponse, RecommendationReport
 
 
 class StartupState(BaseModel):
@@ -20,14 +21,16 @@ class StartupState(BaseModel):
 class SimulationInput(BaseModel):
     state: StartupState
     decision: str
+    mode: str = "hybrid"
 
 
 class MultiStepSimulationInput(BaseModel):
     initial_state: StartupState
-    decisions: list[str]
-    startup_profile_id: int | None = None
-    user_id: int | None = None
-    run_name: str | None = None
+    decisions: List[str]
+    startup_profile_id: Optional[int] = None
+    user_id: Optional[int] = None
+    run_name: Optional[str] = None
+    mode: str = "hybrid"  
 
 
 class SimulationResponse(BaseModel):
@@ -38,6 +41,7 @@ class SimulationResponse(BaseModel):
     agreement: bool
     final_decision: str
     summary: str
+    recommendations: RecommendationReport  
 
 
 class SimulationStepResult(BaseModel):
@@ -50,13 +54,15 @@ class SimulationStepResult(BaseModel):
     agreement: bool
     final_decision: str
     summary: str
+    recommendations: RecommendationReport  
 
 
 class MultiStepSimulationResponse(BaseModel):
-    simulation_run_id: int | None = None
+    simulation_run_id: Optional[int] = None
     initial_state: StartupState
-    steps: list[SimulationStepResult]
+    steps: List[SimulationStepResult]
     final_state: StartupState
+    final_recommendations: RecommendationReport  
 
 
 class DecisionItem(BaseModel):
@@ -66,4 +72,4 @@ class DecisionItem(BaseModel):
 
 
 class AllowedDecisionsResponse(BaseModel):
-    decisions: list[DecisionItem]
+    decisions: List[DecisionItem]

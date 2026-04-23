@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
+from app.services.recommendations import generate_recommendation_report 
+
 from app.db.deps import get_db, get_current_user
 from app.models.simulation_run import SimulationRun
 from app.models.simulation_step import SimulationStep
@@ -39,12 +41,24 @@ def evaluate_state(state):
         "explanation": ai_explanation,
     }
 
-    rule_failure = rule_result["risk_level"] == "HIGH"
+    
+    rule_failure = rule_result["risk_score"] >= 0.60
     ai_failure = ai_result["label"] == "FAILURE"
     agreement = rule_failure == ai_failure
 
     final_decision = get_final_decision(rule_result, ai_result)
     summary = summarize_hybrid_result(rule_result, ai_result, agreement)
+
+    risk_scores = {
+        "global_risk": round(
+            0.6 * ai_raw["probability"] + 0.4 * rule_result["risk_score"], 4
+        )
+    }
+    recommendations = generate_recommendation_report(
+        state,
+        rule_result["derived"],
+        risk_scores,
+    )
 
     return {
         "runway": rule_result["runway"],
@@ -53,6 +67,7 @@ def evaluate_state(state):
         "agreement": agreement,
         "final_decision": final_decision,
         "summary": summary,
+        "recommendations": recommendations,  
     }
 
 
@@ -61,7 +76,7 @@ def list_allowed_decisions():
     return {"decisions": get_allowed_decisions()}
 
 
-@router.post("/step", response_model=SimulationResponse)
+@router.post("/step")
 def simulate_step(payload: SimulationInput):
     try:
         updated_state = apply_decision(payload.state, payload.decision)
@@ -78,10 +93,11 @@ def simulate_step(payload: SimulationInput):
         "agreement": evaluation["agreement"],
         "final_decision": evaluation["final_decision"],
         "summary": evaluation["summary"],
+        "recommendations": evaluation["recommendations"],  
     }
 
 
-@router.post("/run", response_model=MultiStepSimulationResponse)
+@router.post("/run")
 def simulate_multiple_steps(
     payload: MultiStepSimulationInput,
     db: Session = Depends(get_db),
@@ -163,19 +179,18 @@ def simulate_multiple_steps(
 
         db.add(step_record)
 
-        steps.append(
-            {
-                "step_number": index,
-                "decision": decision,
-                "updated_state": updated_state,
-                "runway": evaluation["runway"],
-                "rule_based": evaluation["rule_based"],
-                "ai_based": evaluation["ai_based"],
-                "agreement": evaluation["agreement"],
-                "final_decision": evaluation["final_decision"],
-                "summary": evaluation["summary"],
-            }
-        )
+        steps.append({
+            "step_number": index,
+            "decision": decision,
+            "updated_state": updated_state,
+            "runway": evaluation["runway"],
+            "rule_based": evaluation["rule_based"],
+            "ai_based": evaluation["ai_based"],
+            "agreement": evaluation["agreement"],
+            "final_decision": evaluation["final_decision"],
+            "summary": evaluation["summary"],
+            "recommendations": evaluation["recommendations"], 
+        })
 
         current_state = updated_state
 
@@ -195,4 +210,5 @@ def simulate_multiple_steps(
         "initial_state": payload.initial_state,
         "steps": steps,
         "final_state": current_state,
+        "final_recommendations": final_eval["recommendations"],  
     }
